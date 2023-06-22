@@ -8,7 +8,18 @@ Future<void> main() async {
     user: env['USER_NAME']!,
     apiToken: env['API_TOKEN']!,
   );
-  print(
-    'Total estimate for task with MB label is ${await jiraStats.getTotalEstimationFor(label: 'MB')}',
-  );
+  await jiraStats.initialize();
+  final searchResults = await jiraStats.getTotalEstimationFor(label: 'MB');
+
+  print('--- Ignored Issues ---');
+  for (final ignoredIssue in searchResults.ignoredIssues) {
+    print('${ignoredIssue.key} because ${ignoredIssue.reason}');
+  }
+  print('');
+  print('--- Estimation Grouped by Status ---');
+  for (final status in searchResults.groupedEstimation.keys) {
+    print(
+      '${status.name} => ${searchResults.groupedEstimation[status]}',
+    );
+  }
 }

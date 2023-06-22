@@ -1,10 +1,10 @@
 
 import 'package:dotenv/dotenv.dart';
-import 'package:jira_api/jira_api.dart' show JiraStats;
+import 'package:jira_api/jira_api.dart' show IssueStatus, JiraStats;
 import 'package:test/test.dart';
 
 void main() {
-  group('Smoke test', () {
+  group('getTotalEstimationFor', () {
     JiraStats? jiraStats;
 
     setUp(() async {
@@ -17,9 +17,17 @@ void main() {
       await jiraStats!.initialize();
     });
 
-    test('getTotalEstimationFor MB labels', () async {
-      expect(await jiraStats!.getTotalEstimationFor(label: 'MB'), isNotNull);
-      expect(await jiraStats!.getTotalEstimationFor(label: 'MB'), isPositive);
+    test('ignoredIssues', () async {
+      final result = await jiraStats!.getTotalEstimationFor(label: 'MB');
+      expect(result, isNotNull);
+      expect(result.ignoredIssues, isNotEmpty);
+    });
+
+    test('groupedEstimation', () async {
+      final result = await jiraStats!.getTotalEstimationFor(label: 'MB');
+      expect(result, isNotNull);
+      expect(result.groupedEstimation, isA<Map<IssueStatus, double>>());
+      expect(result.groupedEstimation, isNotEmpty);
     });
   });
 }
