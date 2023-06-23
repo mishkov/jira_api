@@ -1,3 +1,4 @@
+import 'package:atlassian_apis/jira_platform.dart';
 import 'package:dotenv/dotenv.dart';
 import 'package:jira_api/jira_api.dart' show IssueStatus, JiraStats;
 import 'package:test/test.dart';
@@ -54,6 +55,19 @@ void main() {
         JiraStats.doesBelongToGroup(startDate, endDate, DateTime(2000, 6, 31)),
         false,
       );
+    });
+
+    test('"resolution" String', () async {
+      final changelog = Changelog(items: [
+        ChangeDetails(field: 'resolution'),
+        ChangeDetails(field: 'status'),
+      ]);
+
+      final result = changelog.items.where((element) {
+        return element.field == 'status';
+      });
+
+      expect(result.length, 1);
     });
   });
 }

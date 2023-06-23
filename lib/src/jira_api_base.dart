@@ -54,11 +54,11 @@ class JiraStats {
       const createDateField = 'created';
       final searchResults = await _jira!.issueSearch.searchForIssuesUsingJql(
         jql: 'project = "AS" AND labels in ("$label")',
-        // fields: [
-        //   storyPointEstimateField,
-        //   statusField,
-        //   createDateField,
-        // ],
+        fields: [
+          storyPointEstimateField,
+          statusField,
+          createDateField,
+        ],
         startAt: startCountAt,
       );
 
@@ -150,32 +150,42 @@ class JiraStats {
         final groupDate = datedGroups[i].date;
         final previousGroupDate = datedGroups[i + 1].date;
 
+        IssueStatus? status;
         for (final changelog in filteredChangelog) {
-          final statusChanges = changelog.items.where((element) {
-            return element.field == 'status';
-          });
-
           if (doesBelongToGroup(
-              groupDate, previousGroupDate, changelog.created!)) {
-            final status = IssueStatus.fromChangeDetails(statusChanges.single);
+              previousGroupDate, groupDate, changelog.created!)) {
+            final statusChange = changelog.items.single;
+            status = IssueStatus.fromChangeDetails(statusChange);
+          }
+        }
 
-            final doesStatusAlreadyAdded = datedGroups[i]
-                .groupedEstimations
-                .any((element) => element.groupStatus == status);
-            if (doesStatusAlreadyAdded) {
-              final estimationGroup = datedGroups[i]
-                  .groupedEstimations
-                  .where((element) => element.groupStatus == status)
-                  .single;
-
-              estimationGroup.estimation =
-                  estimationGroup.estimation + issue.estimation!;
-            } else {
-              datedGroups[i].groupedEstimations.add(EstimatedGroup(
-                  groupStatus: status, estimation: issue.estimation!));
+        if (status == null) {
+          if (filteredChangelog.isEmpty) {
+            status = issue.status!;
+          } else {
+            for (final changelog in filteredChangelog) {
+              if (changelog.created!.isBefore(groupDate)) {
+                status = IssueStatus.fromChangeDetails(changelog.items.single);
+              }
             }
+          }
+        }
 
-            break;
+        if (status != null) {
+          final doesStatusAlreadyAdded = datedGroups[i]
+              .groupedEstimations
+              .any((element) => element.groupStatus == status);
+          if (doesStatusAlreadyAdded) {
+            final estimationGroup = datedGroups[i]
+                .groupedEstimations
+                .where((element) => element.groupStatus == status)
+                .single;
+
+            estimationGroup.estimation =
+                estimationGroup.estimation + issue.estimation!;
+          } else {
+            datedGroups[i].groupedEstimations.add(EstimatedGroup(
+                groupStatus: status, estimation: issue.estimation!));
           }
         }
       }
@@ -225,8 +235,10 @@ class JiraStats {
     );
   }
 
-  static bool doesBelongToGroup(DateTime previousDatedGroup, DateTime datedGroup,
-      DateTime changeLogDate) {
+  static bool doesBelongToGroup(DateTime previousDatedGroup,
+      DateTime datedGroup, DateTime changeLogDate) {
+    assert(previousDatedGroup.isBefore(datedGroup));
+
     return (changeLogDate.isAfter(previousDatedGroup) &&
         (changeLogDate.isBefore(datedGroup) ||
             changeLogDate.isAtSameMomentAs(datedGroup)));
@@ -236,10 +248,14 @@ class JiraStats {
       PageBeanChangelog changelogs) {
     List<Changelog> filteredChangelog = [];
 
-    for (final changelog in changelogs.values.reversed) {
+    final List<Changelog> copy = List.from(changelogs.values.reversed);
+    for (final changelog in copy) {
       final statusChanges = changelog.items.where((element) {
-        return element.field == 'status';
-      });
+        final actualField = element.field;
+        final expectedField = 'status';
+        final isEqual = actualField == expectedField;
+        return isEqual;
+      }).toList();
 
       if (statusChanges.isEmpty) {
         continue;
@@ -261,7 +277,9 @@ class JiraStats {
         continue;
       }
 
-      filteredChangelog.add(changelog.copyWith(created: date));
+      assert(statusChanges.length == 1);
+      filteredChangelog
+          .add(changelog.copyWith(created: date, items: statusChanges));
     }
 
     return filteredChangelog;
