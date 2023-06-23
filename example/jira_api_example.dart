@@ -17,9 +17,9 @@ Future<void> main() async {
   }
   print('');
   print('--- Estimation Grouped by Status ---');
-  for (final status in searchResults.groupedEstimation.keys) {
+  for (final estimationGroup in searchResults.groupedEstimationAtTheMoment) {
     print(
-      '${status.name} => ${searchResults.groupedEstimation[status]}',
+      '${estimationGroup.groupStatus.name} => ${estimationGroup.estimation}',
     );
   }
 }

@@ -42,20 +42,23 @@ class JiraStats {
       throw JiraNotInitializedException();
     }
 
+    List<Issue> estimatedIssues = [];
     List<IgnoredIssue> ignoredIssues = [];
-    Map<IssueStatus, double> groupedEstimation = {};
+    List<EstimatedGroup> groupedEstimation = [];
 
     int startCountAt = 0;
     int? restIssues;
     do {
       const storyPointEstimateField = 'customfield_10016';
       const statusField = 'status';
+      const createDateField = 'created';
       final searchResults = await _jira!.issueSearch.searchForIssuesUsingJql(
         jql: 'project = "AS" AND labels in ("$label")',
-        fields: [
-          storyPointEstimateField,
-          statusField,
-        ],
+        // fields: [
+        //   storyPointEstimateField,
+        //   statusField,
+        //   createDateField,
+        // ],
         startAt: startCountAt,
       );
 
@@ -92,12 +95,21 @@ class JiraStats {
         }
 
         final status = IssueStatus.fromMap(rawStatus);
-        if (groupedEstimation.containsKey(status)) {
-          groupedEstimation[status] =
-              groupedEstimation[status]! + storyPointEstimate;
-        } else {
-          groupedEstimation.addAll({status: storyPointEstimate});
-        }
+
+        estimatedIssues.add(Issue(
+          issue.key,
+          estimation: storyPointEstimate,
+          creationDate: DateTime.tryParse(issue.fields![createDateField]),
+          status: status,
+        ));
+
+        final group = groupedEstimation
+            .singleWhere((e) => e.groupStatus == status, orElse: () {
+          final newGroup = EstimatedGroup(groupStatus: status);
+          groupedEstimation.add(newGroup);
+          return newGroup;
+        });
+        group.estimation += storyPointEstimate;
       }
 
       if (searchResults.total == null) {
@@ -114,10 +126,145 @@ class JiraStats {
       startCountAt += searchResults.maxResults!;
     } while (restIssues > 0);
 
+    List<GroupedIssuesRecord> datedGroups = [];
+    final now = DateTime.now();
+    final currentDay = DateTime(now.year, now.month, now.day);
+    for (int i = 0; i < 4; i++) {
+      const weekLength = 7;
+      datedGroups.add(GroupedIssuesRecord(
+        date: currentDay.subtract(Duration(days: i * weekLength)),
+        groupedEstimations: [],
+      ));
+    }
+
+    // TODO: try to parse history here
+    for (final issue in estimatedIssues) {
+      final changelogs = await _jira!.issues
+          .getChangeLogs(issueIdOrKey: issue.key!, maxResults: 1000);
+
+      final List<Changelog> filteredChangelog =
+          filterChangelogByStatusAndGroupByDate(changelogs);
+
+      int i = 0;
+      for (; i < datedGroups.length - 1; i++) {
+        final groupDate = datedGroups[i].date;
+        final previousGroupDate = datedGroups[i + 1].date;
+
+        for (final changelog in filteredChangelog) {
+          final statusChanges = changelog.items.where((element) {
+            return element.field == 'status';
+          });
+
+          if (doesBelongToGroup(
+              groupDate, previousGroupDate, changelog.created!)) {
+            final status = IssueStatus.fromChangeDetails(statusChanges.single);
+
+            final doesStatusAlreadyAdded = datedGroups[i]
+                .groupedEstimations
+                .any((element) => element.groupStatus == status);
+            if (doesStatusAlreadyAdded) {
+              final estimationGroup = datedGroups[i]
+                  .groupedEstimations
+                  .where((element) => element.groupStatus == status)
+                  .single;
+
+              estimationGroup.estimation =
+                  estimationGroup.estimation + issue.estimation!;
+            } else {
+              datedGroups[i].groupedEstimations.add(EstimatedGroup(
+                  groupStatus: status, estimation: issue.estimation!));
+            }
+
+            break;
+          }
+        }
+      }
+      final groupDate = datedGroups[i].date;
+
+      // TODO: set default status
+      if (issue.creationDate!.isBefore(groupDate) ||
+          issue.creationDate!.isAtSameMomentAs(groupDate)) {
+        IssueStatus? status;
+
+        if (filteredChangelog.reversed.isEmpty) {
+          status = issue.status!;
+        } else {
+          final firstChange =
+              filteredChangelog.reversed.first.items.where((element) {
+            return element.field == 'status';
+          }).single;
+
+          status = IssueStatus(
+            id: firstChange.from!,
+            name: firstChange.fromString!,
+          );
+        }
+
+        final doesStatusAlreadyAdded = datedGroups[i]
+            .groupedEstimations
+            .any((element) => element.groupStatus == status);
+        if (doesStatusAlreadyAdded) {
+          final estimationGroup = datedGroups[i]
+              .groupedEstimations
+              .where((element) => element.groupStatus == status)
+              .single;
+
+          estimationGroup.estimation =
+              estimationGroup.estimation + issue.estimation!;
+        } else {
+          datedGroups[i].groupedEstimations.add(EstimatedGroup(
+              groupStatus: status, estimation: issue.estimation!));
+        }
+      }
+    }
+
     return EstimationResults(
       ignoredIssues: ignoredIssues,
-      groupedEstimation: groupedEstimation,
+      groupedEstimationAtTheMoment: groupedEstimation,
+      datedGroups: datedGroups,
     );
+  }
+
+  static bool doesBelongToGroup(DateTime previousDatedGroup, DateTime datedGroup,
+      DateTime changeLogDate) {
+    return (changeLogDate.isAfter(previousDatedGroup) &&
+        (changeLogDate.isBefore(datedGroup) ||
+            changeLogDate.isAtSameMomentAs(datedGroup)));
+  }
+
+  List<Changelog> filterChangelogByStatusAndGroupByDate(
+      PageBeanChangelog changelogs) {
+    List<Changelog> filteredChangelog = [];
+
+    for (final changelog in changelogs.values.reversed) {
+      final statusChanges = changelog.items.where((element) {
+        return element.field == 'status';
+      });
+
+      if (statusChanges.isEmpty) {
+        continue;
+      }
+
+      if (statusChanges.length > 1) {
+        log('${changelog.id} ignored because has more than 1 status changes');
+        continue;
+      }
+
+      final dateTime = changelog.created!;
+      final date = DateTime(
+        dateTime.year,
+        dateTime.month,
+        dateTime.day,
+      );
+
+      if (filteredChangelog.any((element) => element.created == date)) {
+        continue;
+      }
+
+      filteredChangelog.add(changelog.copyWith(created: date));
+    }
+
+    return filteredChangelog;
   }
 }
 
@@ -127,20 +274,35 @@ class SearchResultHasNotEnoughtInfo implements Exception {}
 
 class EstimationResults {
   List<IgnoredIssue> ignoredIssues;
-  Map<IssueStatus, double> groupedEstimation;
+  List<EstimatedGroup> groupedEstimationAtTheMoment;
+  List<GroupedIssuesRecord> datedGroups;
 
   EstimationResults({
     required this.ignoredIssues,
-    required this.groupedEstimation,
+    required this.groupedEstimationAtTheMoment,
+    required this.datedGroups,
   });
 }
 
-class IgnoredIssue {
+class Issue {
   final String? key;
+  final double? estimation;
+  final DateTime? creationDate;
+  final IssueStatus? status;
+
+  Issue(
+    this.key, {
+    this.estimation,
+    this.creationDate,
+    this.status,
+  });
+}
+
+class IgnoredIssue extends Issue {
   final String reason;
 
   IgnoredIssue(
-    this.key, {
+    super.key, {
     required this.reason,
   });
 }
@@ -153,6 +315,13 @@ class IssueStatus {
     required this.id,
     required this.name,
   });
+
+  factory IssueStatus.fromChangeDetails(ChangeDetails details) {
+    return IssueStatus(
+      id: details.to ?? '',
+      name: details.toString$ ?? '',
+    );
+  }
 
   factory IssueStatus.fromMap(Map<String, dynamic> map) {
     return IssueStatus(
@@ -173,4 +342,24 @@ class IssueStatus {
 
   @override
   int get hashCode => id.hashCode ^ name.hashCode;
+}
+
+class EstimatedGroup {
+  final IssueStatus groupStatus;
+  double estimation;
+
+  EstimatedGroup({
+    required this.groupStatus,
+    this.estimation = 0.0,
+  });
+}
+
+class GroupedIssuesRecord {
+  final DateTime date;
+  final List<EstimatedGroup> groupedEstimations;
+
+  GroupedIssuesRecord({
+    required this.date,
+    required this.groupedEstimations,
+  });
 }
