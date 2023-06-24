@@ -11,6 +11,7 @@ environment:
 dependencies:
   atlassian_apis: ^0.13.0
   dotenv: ^4.1.0
+  intl: ^0.18.1
 
 dev_dependencies:
   lints: ^2.0.0
