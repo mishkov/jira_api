@@ -46,8 +46,19 @@ class JiraStats {
     return page.values;
   }
 
-  Future<EstimationResults> getTotalEstimationFor({
-    required String label,
+  Future<List<String>> validateJql(String jql) async {
+    if (_jira == null) {
+      throw JiraNotInitializedException();
+    }
+
+    final parsedJql = await _jira!.jql
+        .parseJqlQueries(body: JqlQueriesToParse(queries: [jql]));
+
+    return parsedJql.queries.single.errors;
+  }
+
+  Future<EstimationResults> getTotalEstimationByJql(
+    String jql, {
     int weeksAgoCount = 4,
     SamplingFrequency frequency = SamplingFrequency.eachWeek,
   }) async {
@@ -66,7 +77,7 @@ class JiraStats {
       const statusField = 'status';
       const createDateField = 'created';
       final searchResults = await _jira!.issueSearch.searchForIssuesUsingJql(
-        jql: 'project = "AS" AND labels in ("$label")',
+        jql: jql,
         fields: [
           storyPointEstimateField,
           statusField,
@@ -259,6 +270,18 @@ class JiraStats {
       ignoredIssues: ignoredIssues,
       groupedEstimationAtTheMoment: groupedEstimation,
       datedGroups: datedGroups,
+    );
+  }
+
+  Future<EstimationResults> getTotalEstimationFor({
+    required String label,
+    int weeksAgoCount = 4,
+    SamplingFrequency frequency = SamplingFrequency.eachWeek,
+  }) async {
+    return getTotalEstimationByJql(
+      'project = "AS" AND labels in ("$label")',
+      weeksAgoCount: weeksAgoCount,
+      frequency: frequency,
     );
   }
 
