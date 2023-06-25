@@ -350,6 +350,40 @@ class EstimationResults {
     required this.groupedEstimationAtTheMoment,
     required this.datedGroups,
   });
+
+  EstimationResults clone() {
+    return EstimationResults(
+      ignoredIssues: ignoredIssues.map((e) {
+        return IgnoredIssue(
+          e.key,
+          reason: e.reason,
+        );
+      }).toList(),
+      groupedEstimationAtTheMoment: groupedEstimationAtTheMoment.map((e) {
+        return EstimatedGroup(
+          groupStatus: IssueStatus(
+            id: e.groupStatus.id,
+            name: e.groupStatus.name,
+          ),
+          estimation: e.estimation,
+        );
+      }).toList(),
+      datedGroups: datedGroups.map((e) {
+        return GroupedIssuesRecord(
+          date: e.date,
+          groupedEstimations: e.groupedEstimations.map((e) {
+            return EstimatedGroup(
+              groupStatus: IssueStatus(
+                id: e.groupStatus.id,
+                name: e.groupStatus.name,
+              ),
+              estimation: e.estimation,
+            );
+          }).toList(),
+        );
+      }).toList(),
+    );
+  }
 }
 
 class Issue {
