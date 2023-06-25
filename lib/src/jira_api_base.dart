@@ -25,6 +25,17 @@ class JiraStats {
     // Create the API wrapper from the http client
     _jira = JiraPlatformApi(_apiClient!);
 
+    try {
+      final currentUser = await _jira!.myself.getCurrentUser();
+      currentUser.accountId;
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        throw UnauthorizedException();
+      }
+
+      return;
+    }
+
     // Communicate with the APIs..
     await _jira!.projects.searchProjects();
   }
@@ -465,3 +476,5 @@ class GroupedIssuesRecord {
     required this.groupedEstimations,
   });
 }
+
+class UnauthorizedException implements Exception {}
