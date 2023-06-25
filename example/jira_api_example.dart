@@ -12,14 +12,17 @@ Future<void> main() async {
     apiToken: env['API_TOKEN']!,
   );
   await jiraStats.initialize();
-  final searchResults = await jiraStats.getTotalEstimationFor(label: 'MB');
+  final searchResults = await jiraStats.getTotalEstimationFor(
+    label: 'MB',
+    weeksAgoCount: 40,
+  );
 
   print('--- Ignored Issues ---');
   for (final ignoredIssue in searchResults.ignoredIssues) {
     print('${ignoredIssue.key} because ${ignoredIssue.reason}');
   }
   print('');
-  print('--- Estimation Grouped by Status ---');
+  print('--- Estimation for MB Label Grouped by Status at the Moment ---');
   for (final estimationGroup in searchResults.groupedEstimationAtTheMoment) {
     print(
       '${estimationGroup.groupStatus.name} => ${estimationGroup.estimation}',
@@ -46,6 +49,10 @@ Future<void> main() async {
   final tableWidth = (allStatus.length + 4) +
       dateFormat.length +
       (maxLengthStatus + 2) * allStatus.length;
+  final title = ' History of Estimation for MB Label Grouped by Status ';
+  final padding = '=' * ((tableWidth - title.length) ~/ 2);
+  print('=' * tableWidth);
+  print('$padding$title$padding'.padRight(tableWidth, '='));
   print('=' * tableWidth);
   String statusesString = '';
   for (final status in allStatus) {

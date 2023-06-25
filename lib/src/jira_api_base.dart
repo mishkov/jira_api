@@ -36,8 +36,10 @@ class JiraStats {
     _jira = null;
   }
 
-  Future<EstimationResults> getTotalEstimationFor(
-      {required String label}) async {
+  Future<EstimationResults> getTotalEstimationFor({
+    required String label,
+    int weeksAgoCount = 4,
+  }) async {
     if (_jira == null) {
       throw JiraNotInitializedException();
     }
@@ -129,7 +131,7 @@ class JiraStats {
     List<GroupedIssuesRecord> datedGroups = [];
     final now = DateTime.now();
     final currentDay = DateTime(now.year, now.month, now.day);
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < weeksAgoCount; i++) {
       const weekLength = 7;
       datedGroups.add(GroupedIssuesRecord(
         date: currentDay.subtract(Duration(days: i * weekLength)),
@@ -156,18 +158,24 @@ class JiraStats {
               previousGroupDate, groupDate, changelog.created!)) {
             final statusChange = changelog.items.single;
             status = IssueStatus.fromChangeDetails(statusChange);
+
+            break;
           }
         }
 
         if (status == null) {
-          if (filteredChangelog.isEmpty) {
-            status = issue.status!;
-          } else {
-            for (final changelog in filteredChangelog) {
-              if (changelog.created!.isBefore(groupDate)) {
-                status = IssueStatus.fromChangeDetails(changelog.items.single);
-              }
+          for (final changelog in filteredChangelog) {
+            if (changelog.created!.isBefore(groupDate)) {
+              status = IssueStatus.fromChangeDetails(changelog.items.single);
+
+              break;
             }
+          }
+        }
+
+        if (status == null) {
+          if (issue.creationDate!.isBefore(groupDate)) {
+            status = issue.status;
           }
         }
 
@@ -196,19 +204,19 @@ class JiraStats {
           issue.creationDate!.isAtSameMomentAs(groupDate)) {
         IssueStatus? status;
 
-        if (filteredChangelog.reversed.isEmpty) {
-          status = issue.status!;
-        } else {
-          final firstChange =
-              filteredChangelog.reversed.first.items.where((element) {
-            return element.field == 'status';
-          }).single;
+        for (final changelog in filteredChangelog) {
+          if (changelog.created!.isBefore(groupDate) ||
+              changelog.created!.isAtSameMomentAs(groupDate)) {
+            status =
+                IssueStatus.fromChangeDetails(changelog.items.where((element) {
+              return element.field == 'status';
+            }).single);
 
-          status = IssueStatus(
-            id: firstChange.from!,
-            name: firstChange.fromString!,
-          );
+            break;
+          }
         }
+
+        status ??= issue.status!;
 
         final doesStatusAlreadyAdded = datedGroups[i]
             .groupedEstimations
