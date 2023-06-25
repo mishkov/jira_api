@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:atlassian_apis/jira_platform.dart';
-import 'package:collection/collection.dart';
+
+enum SamplingFrequency { eachWeek, eachDay }
 
 class JiraStats {
   final String user;
@@ -48,6 +49,7 @@ class JiraStats {
   Future<EstimationResults> getTotalEstimationFor({
     required String label,
     int weeksAgoCount = 4,
+    SamplingFrequency frequency = SamplingFrequency.eachWeek,
   }) async {
     if (_jira == null) {
       throw JiraNotInitializedException();
@@ -140,10 +142,18 @@ class JiraStats {
     List<GroupedIssuesRecord> datedGroups = [];
     final now = DateTime.now();
     final currentDay = DateTime(now.year, now.month, now.day);
-    for (int i = 0; i < weeksAgoCount; i++) {
-      const weekLength = 7;
+    final int periodLength;
+    final int periodsAgo;
+    if (frequency == SamplingFrequency.eachDay) {
+      periodLength = 1;
+      periodsAgo = weeksAgoCount * 7;
+    } else {
+      periodLength = 7;
+      periodsAgo = weeksAgoCount;
+    }
+    for (int i = 0; i < periodsAgo; i++) {
       datedGroups.add(GroupedIssuesRecord(
-        date: currentDay.subtract(Duration(days: i * weekLength)),
+        date: currentDay.subtract(Duration(days: i * periodLength)),
         groupedEstimations: [],
       ));
     }

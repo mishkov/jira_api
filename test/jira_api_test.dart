@@ -1,10 +1,10 @@
 import 'package:atlassian_apis/jira_platform.dart';
 import 'package:dotenv/dotenv.dart';
-import 'package:jira_api/jira_api.dart' show IssueStatus, JiraStats;
+import 'package:jira_api/jira_api.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('getTotalEstimationFor', () {
+  group('Jira Stats', () {
     JiraStats? jiraStats;
 
     setUp(() async {
@@ -23,12 +23,17 @@ void main() {
       expect(result.ignoredIssues, isNotEmpty);
     });
 
-    test('groupedEstimation', () async {
+    test('groupedEstimation for each week', () async {
       final result = await jiraStats!.getTotalEstimationFor(label: 'MB');
       expect(result, isNotNull);
-      expect(
-          result.groupedEstimationAtTheMoment, isA<Map<IssueStatus, double>>());
+      expect(result.groupedEstimationAtTheMoment, isA<EstimatedGroup>());
       expect(result.groupedEstimationAtTheMoment, isNotEmpty);
+    });
+
+    test('groupedEstimation for each day', () async {
+      final result = await jiraStats!.getTotalEstimationFor(label: 'MB');
+      expect(result, isNotNull);
+      expect(result.datedGroups, isNotEmpty);
     });
 
     test('doesBelongToGroup', () async {
