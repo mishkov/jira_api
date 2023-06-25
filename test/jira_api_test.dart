@@ -69,5 +69,10 @@ void main() {
 
       expect(result.length, 1);
     });
+
+    test('getLabels', () async {
+      final labels = await jiraStats!.getLabels();
+      expect(labels, isNotEmpty);
+    });
   });
 }

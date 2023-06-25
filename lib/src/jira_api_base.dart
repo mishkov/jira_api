@@ -36,6 +36,15 @@ class JiraStats {
     _jira = null;
   }
 
+  Future<List<String>> getLabels() async {
+    if (_jira == null) {
+      throw JiraNotInitializedException();
+    }
+
+    final page = await _jira!.labels.getAllLabels(maxResults: 100);
+    return page.values;
+  }
+
   Future<EstimationResults> getTotalEstimationFor({
     required String label,
     int weeksAgoCount = 4,
