@@ -6,32 +6,44 @@ import 'package:test/test.dart';
 void main() {
   group('Jira Stats', () {
     JiraStats? jiraStats;
+    final env = DotEnv();
 
     setUp(() async {
-      final env = DotEnv();
       env.load();
       jiraStats = JiraStats(
         user: env['USER_NAME']!,
         apiToken: env['API_TOKEN']!,
+        accountName: env['ACCOUNT_NAME']!,
       );
       await jiraStats!.initialize();
     });
 
     test('ignoredIssues', () async {
-      final result = await jiraStats!.getTotalEstimationFor(label: 'MB');
+      final result = await jiraStats!.getTotalEstimationByJql(
+        env['TEST_JQL']!,
+        weeksAgoCount: 40,
+        storyPointEstimateField: env['STORY_POINTS_FIELD']!,
+      );
       expect(result, isNotNull);
       expect(result.ignoredIssues, isNotEmpty);
     });
 
     test('groupedEstimation for each week', () async {
-      final result = await jiraStats!.getTotalEstimationFor(label: 'MB');
+      final result = await jiraStats!.getTotalEstimationByJql(
+        env['TEST_JQL']!,
+        weeksAgoCount: 40,
+        storyPointEstimateField: env['STORY_POINTS_FIELD']!,
+      );
       expect(result, isNotNull);
-      expect(result.groupedEstimationAtTheMoment, isA<EstimatedGroup>());
       expect(result.groupedEstimationAtTheMoment, isNotEmpty);
     });
 
     test('groupedEstimation for each day', () async {
-      final result = await jiraStats!.getTotalEstimationFor(label: 'MB');
+      final result = await jiraStats!.getTotalEstimationByJql(
+        env['TEST_JQL']!,
+        weeksAgoCount: 40,
+        storyPointEstimateField: env['STORY_POINTS_FIELD']!,
+      );
       expect(result, isNotNull);
       expect(result.datedGroups, isNotEmpty);
     });

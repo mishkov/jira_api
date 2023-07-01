@@ -6,18 +6,31 @@ import 'package:atlassian_apis/jira_platform.dart';
 enum SamplingFrequency { eachWeek, eachDay }
 
 class JiraStats {
+  /// Email address of your account. Like test@gmail.com
   final String user;
+
+  /// Api Token that you generate in your account settings
   final String apiToken;
+
+  /// Will be used in <your-account>.atlassian.net domain to access atlassian
+  /// api.
+  final String accountName;
+
+  final _statusField = 'status';
 
   ApiClient? _apiClient;
   JiraPlatformApi? _jira;
 
-  JiraStats({required this.user, required this.apiToken});
+  JiraStats({
+    required this.user,
+    required this.apiToken,
+    required this.accountName,
+  });
 
   Future<void> initialize() async {
     // Create an authenticated http client.
     _apiClient = ApiClient.basicAuthentication(
-      Uri.https('asandsb.atlassian.net', ''),
+      Uri.https('$accountName.atlassian.net', ''),
       user: user,
       apiToken: apiToken,
     );
@@ -48,15 +61,16 @@ class JiraStats {
     _jira = null;
   }
 
-  Future<List<String>> getLabels() async {
+  Future<List<String>> getLabels({int maxResults = 100}) async {
     if (_jira == null) {
       throw JiraNotInitializedException();
     }
 
-    final page = await _jira!.labels.getAllLabels(maxResults: 100);
+    final page = await _jira!.labels.getAllLabels(maxResults: maxResults);
     return page.values;
   }
 
+  /// Returns a list of error messages for passed [jql]
   Future<List<String>> validateJql(String jql) async {
     if (_jira == null) {
       throw JiraNotInitializedException();
@@ -68,10 +82,14 @@ class JiraStats {
     return parsedJql.queries.single.errors;
   }
 
+  /// [storyPointEstimateField] is a name of field that represents task
+  /// esmitaion's points in your Jira projects. It must be [num] or [String]
+  /// that can be converted into [num].
   Future<EstimationResults> getTotalEstimationByJql(
     String jql, {
     int weeksAgoCount = 4,
     SamplingFrequency frequency = SamplingFrequency.eachWeek,
+    required String storyPointEstimateField,
   }) async {
     if (_jira == null) {
       throw JiraNotInitializedException();
@@ -84,14 +102,12 @@ class JiraStats {
     int startCountAt = 0;
     int? restIssues;
     do {
-      const storyPointEstimateField = 'customfield_10016';
-      const statusField = 'status';
       const createDateField = 'created';
       final searchResults = await _jira!.issueSearch.searchForIssuesUsingJql(
         jql: jql,
         fields: [
           storyPointEstimateField,
-          statusField,
+          _statusField,
           createDateField,
         ],
         startAt: startCountAt,
@@ -118,12 +134,12 @@ class JiraStats {
           continue;
         }
 
-        final rawStatus = issue.fields![statusField];
+        final rawStatus = issue.fields![_statusField];
 
         if (rawStatus is! Map<String, dynamic>) {
           ignoredIssues.add(IgnoredIssue(
             issue.key ?? issue.id,
-            reason: 'status field is not Map or is null',
+            reason: '$_statusField field is not Map or is null',
           ));
 
           continue;
@@ -180,7 +196,6 @@ class JiraStats {
       ));
     }
 
-    // TODO: try to parse history here
     for (final issue in estimatedIssues) {
       final changelogs = await _jira!.issues
           .getChangeLogs(issueIdOrKey: issue.key!, maxResults: 1000);
@@ -240,7 +255,6 @@ class JiraStats {
       }
       final groupDate = datedGroups[i].date;
 
-      // TODO: set default status
       if (issue.creationDate!.isBefore(groupDate) ||
           issue.creationDate!.isAtSameMomentAs(groupDate)) {
         IssueStatus? status;
@@ -250,7 +264,7 @@ class JiraStats {
               changelog.created!.isAtSameMomentAs(groupDate)) {
             status =
                 IssueStatus.fromChangeDetails(changelog.items.where((element) {
-              return element.field == 'status';
+              return element.field == _statusField;
             }).single);
 
             break;
@@ -284,18 +298,6 @@ class JiraStats {
     );
   }
 
-  Future<EstimationResults> getTotalEstimationFor({
-    required String label,
-    int weeksAgoCount = 4,
-    SamplingFrequency frequency = SamplingFrequency.eachWeek,
-  }) async {
-    return getTotalEstimationByJql(
-      'project = "AS" AND labels in ("$label")',
-      weeksAgoCount: weeksAgoCount,
-      frequency: frequency,
-    );
-  }
-
   static bool doesBelongToGroup(DateTime previousDatedGroup,
       DateTime datedGroup, DateTime changeLogDate) {
     assert(previousDatedGroup.isBefore(datedGroup));
@@ -313,8 +315,7 @@ class JiraStats {
     for (final changelog in copy) {
       final statusChanges = changelog.items.where((element) {
         final actualField = element.field;
-        final expectedField = 'status';
-        final isEqual = actualField == expectedField;
+        final isEqual = actualField == _statusField;
         return isEqual;
       }).toList();
 

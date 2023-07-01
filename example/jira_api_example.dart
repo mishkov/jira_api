@@ -10,11 +10,13 @@ Future<void> main() async {
   final jiraStats = JiraStats(
     user: env['USER_NAME']!,
     apiToken: env['API_TOKEN']!,
+    accountName: env['ACCOUNT_NAME']!,
   );
   await jiraStats.initialize();
-  final searchResults = await jiraStats.getTotalEstimationFor(
-    label: 'MB',
+  final searchResults = await jiraStats.getTotalEstimationByJql(
+    env['TEST_JQL']!,
     weeksAgoCount: 40,
+    storyPointEstimateField: env['STORY_POINTS_FIELD']!,
   );
 
   print('--- Ignored Issues ---');
@@ -22,7 +24,8 @@ Future<void> main() async {
     print('${ignoredIssue.key} because ${ignoredIssue.reason}');
   }
   print('');
-  print('--- Estimation for MB Label Grouped by Status at the Moment ---');
+  print(
+      '--- Estimation for "${env['TEST_JQL']!}" query Grouped by Status at the Moment ---');
   for (final estimationGroup in searchResults.groupedEstimationAtTheMoment) {
     print(
       '${estimationGroup.groupStatus.name} => ${estimationGroup.estimation}',
@@ -49,7 +52,8 @@ Future<void> main() async {
   final tableWidth = (allStatus.length + 4) +
       dateFormat.length +
       (maxLengthStatus + 2) * allStatus.length;
-  final title = ' History of Estimation for MB Label Grouped by Status ';
+  final title =
+      ' History of Estimation for "${env['TEST_JQL']!}" query Grouped by Status ';
   final padding = '=' * ((tableWidth - title.length) ~/ 2);
   print('=' * tableWidth);
   print('$padding$title$padding'.padRight(tableWidth, '='));
