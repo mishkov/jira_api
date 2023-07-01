@@ -82,6 +82,31 @@ class JiraStats {
     return parsedJql.queries.single.errors;
   }
 
+  /// Checks if Jira contains issue's field with passed [fieldId] and
+  /// check if it has correct type. If field does not exit then throws
+  /// [FieldNotFoundException].
+  Future<void> validateStoryPoitnsField(String fieldId) async {
+    if (_jira == null) {
+      throw JiraNotInitializedException();
+    }
+
+    final fields = await _jira!.issueFields.getFields();
+
+    final possibleStoryPointsFields = fields.where((jiraField) {
+      return jiraField.id == fieldId;
+    });
+
+    if (possibleStoryPointsFields.isEmpty) {
+      throw FieldNotFoundException();
+    }
+
+    final storyPointsField = possibleStoryPointsFields.single;
+
+    if (storyPointsField.schema?.type != 'number') {
+      throw InvalidFieldTypeException();
+    }
+  }
+
   /// [storyPointEstimateField] is a name of field that represents task
   /// esmitaion's points in your Jira projects. It must be [num] or [String]
   /// that can be converted into [num].
@@ -479,3 +504,7 @@ class GroupedIssuesRecord {
 }
 
 class UnauthorizedException implements Exception {}
+
+class FieldNotFoundException implements Exception {}
+
+class InvalidFieldTypeException implements Exception {}

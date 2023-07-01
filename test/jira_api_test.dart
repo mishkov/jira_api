@@ -91,5 +91,25 @@ void main() {
       final labels = await jiraStats!.getLabels();
       expect(labels, isNotEmpty);
     });
+
+    test('validateStoryPoitnsField', () async {
+      expect(
+        () async {
+          await jiraStats!
+              .validateStoryPoitnsField('some_invalid_field_id_that_does_not_exists');
+        },
+        throwsA(isA<FieldNotFoundException>()),
+      );
+
+      expect(
+        () async {
+          await jiraStats!
+              .validateStoryPoitnsField('statuscategorychangedate');
+        },
+        throwsA(isA<InvalidFieldTypeException>()),
+      );
+
+      await jiraStats!.validateStoryPoitnsField(env['STORY_POINTS_FIELD']!);
+    });
   });
 }
