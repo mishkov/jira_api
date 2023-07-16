@@ -2,8 +2,11 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:atlassian_apis/jira_platform.dart';
+import 'package:http/http.dart';
 
 enum SamplingFrequency { eachWeek, eachDay }
+
+
 
 class JiraStats {
   /// Email address of your account. Like test@gmail.com
@@ -27,12 +30,17 @@ class JiraStats {
     required this.accountName,
   });
 
-  Future<void> initialize() async {
+  Future<void> initialize({BaseClient? client}) async {
+    // final client = MyClient();
+
+    // get(Uri.parse('https://www.google.com'));
+
     // Create an authenticated http client.
     _apiClient = ApiClient.basicAuthentication(
       Uri.https('$accountName.atlassian.net', ''),
       user: user,
       apiToken: apiToken,
+      client: client,
     );
 
     // Create the API wrapper from the http client
