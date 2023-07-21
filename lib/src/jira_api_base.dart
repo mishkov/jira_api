@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:atlassian_apis/jira_platform.dart';
+import 'package:collection/collection.dart';
 import 'package:http/http.dart';
 
 enum SamplingFrequency { eachWeek, eachDay }
-
-
 
 class JiraStats {
   /// Email address of your account. Like test@gmail.com
@@ -429,6 +428,50 @@ class EstimationResults {
       }).toList(),
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'ignoredIssues': ignoredIssues.map((x) => x.toMap()).toList(),
+      'groupedEstimationAtTheMoment':
+          groupedEstimationAtTheMoment.map((x) => x.toMap()).toList(),
+      'datedGroups': datedGroups.map((x) => x.toMap()).toList(),
+    };
+  }
+
+  factory EstimationResults.fromMap(Map<String, dynamic> map) {
+    return EstimationResults(
+      ignoredIssues: List<IgnoredIssue>.from(
+          map['ignoredIssues']?.map((x) => IgnoredIssue.fromMap(x))),
+      groupedEstimationAtTheMoment: List<EstimatedGroup>.from(
+          map['groupedEstimationAtTheMoment']
+              ?.map((x) => EstimatedGroup.fromMap(x))),
+      datedGroups: List<GroupedIssuesRecord>.from(
+          map['datedGroups']?.map((x) => GroupedIssuesRecord.fromMap(x))),
+    );
+  }
+
+  String toJson() => json.encode(toMap());
+
+  factory EstimationResults.fromJson(String source) =>
+      EstimationResults.fromMap(json.decode(source));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    final listEquals = const DeepCollectionEquality().equals;
+
+    return other is EstimationResults &&
+        listEquals(other.ignoredIssues, ignoredIssues) &&
+        listEquals(
+            other.groupedEstimationAtTheMoment, groupedEstimationAtTheMoment) &&
+        listEquals(other.datedGroups, datedGroups);
+  }
+
+  @override
+  int get hashCode =>
+      ignoredIssues.hashCode ^
+      groupedEstimationAtTheMoment.hashCode ^
+      datedGroups.hashCode;
 }
 
 class Issue {
@@ -443,6 +486,49 @@ class Issue {
     this.creationDate,
     this.status,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'key': key,
+      'estimation': estimation,
+      'creationDate': creationDate?.millisecondsSinceEpoch,
+      'status': status?.toMap(),
+    };
+  }
+
+  factory Issue.fromMap(Map<String, dynamic> map) {
+    return Issue(
+      map['key'],
+      estimation: map['estimation']?.toDouble(),
+      creationDate: map['creationDate'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['creationDate'])
+          : null,
+      status: map['status'] != null ? IssueStatus.fromMap(map['status']) : null,
+    );
+  }
+
+  String toJson() => json.encode(toMap());
+
+  factory Issue.fromJson(String source) => Issue.fromMap(json.decode(source));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is Issue &&
+        other.key == key &&
+        other.estimation == estimation &&
+        other.creationDate == creationDate &&
+        other.status == status;
+  }
+
+  @override
+  int get hashCode {
+    return key.hashCode ^
+        estimation.hashCode ^
+        creationDate.hashCode ^
+        status.hashCode;
+  }
 }
 
 class IgnoredIssue extends Issue {
@@ -452,6 +538,37 @@ class IgnoredIssue extends Issue {
     super.key, {
     required this.reason,
   });
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      'key': key,
+      'reason': reason,
+    };
+  }
+
+  factory IgnoredIssue.fromMap(Map<String, dynamic> map) {
+    return IgnoredIssue(
+      map['key'] ?? '',
+      reason: map['reason'] ?? '',
+    );
+  }
+
+  @override
+  String toJson() => json.encode(toMap());
+
+  factory IgnoredIssue.fromJson(String source) =>
+      IgnoredIssue.fromMap(json.decode(source));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is IgnoredIssue && other.reason == reason;
+  }
+
+  @override
+  int get hashCode => reason.hashCode;
 }
 
 class IssueStatus {
@@ -489,6 +606,15 @@ class IssueStatus {
 
   @override
   int get hashCode => id.hashCode ^ name.hashCode;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+    };
+  }
+
+  String toJson() => json.encode(toMap());
 }
 
 class EstimatedGroup {
@@ -499,6 +625,37 @@ class EstimatedGroup {
     required this.groupStatus,
     this.estimation = 0.0,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'groupStatus': groupStatus.toMap(),
+      'estimation': estimation,
+    };
+  }
+
+  factory EstimatedGroup.fromMap(Map<String, dynamic> map) {
+    return EstimatedGroup(
+      groupStatus: IssueStatus.fromMap(map['groupStatus']),
+      estimation: map['estimation']?.toDouble() ?? 0.0,
+    );
+  }
+
+  String toJson() => json.encode(toMap());
+
+  factory EstimatedGroup.fromJson(String source) =>
+      EstimatedGroup.fromMap(json.decode(source));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is EstimatedGroup &&
+        other.groupStatus == groupStatus &&
+        other.estimation == estimation;
+  }
+
+  @override
+  int get hashCode => groupStatus.hashCode ^ estimation.hashCode;
 }
 
 class GroupedIssuesRecord {
@@ -509,6 +666,39 @@ class GroupedIssuesRecord {
     required this.date,
     required this.groupedEstimations,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'date': date.millisecondsSinceEpoch,
+      'groupedEstimations': groupedEstimations.map((x) => x.toMap()).toList(),
+    };
+  }
+
+  factory GroupedIssuesRecord.fromMap(Map<String, dynamic> map) {
+    return GroupedIssuesRecord(
+      date: DateTime.fromMillisecondsSinceEpoch(map['date']),
+      groupedEstimations: List<EstimatedGroup>.from(
+          map['groupedEstimations']?.map((x) => EstimatedGroup.fromMap(x))),
+    );
+  }
+
+  String toJson() => json.encode(toMap());
+
+  factory GroupedIssuesRecord.fromJson(String source) =>
+      GroupedIssuesRecord.fromMap(json.decode(source));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    final listEquals = const DeepCollectionEquality().equals;
+
+    return other is GroupedIssuesRecord &&
+        other.date == date &&
+        listEquals(other.groupedEstimations, groupedEstimations);
+  }
+
+  @override
+  int get hashCode => date.hashCode ^ groupedEstimations.hashCode;
 }
 
 class UnauthorizedException implements Exception {}

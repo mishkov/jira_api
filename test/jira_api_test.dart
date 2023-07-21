@@ -95,21 +95,35 @@ void main() {
     test('validateStoryPoitnsField', () async {
       expect(
         () async {
-          await jiraStats!
-              .validateStoryPoitnsField('some_invalid_field_id_that_does_not_exists');
+          await jiraStats!.validateStoryPoitnsField(
+              'some_invalid_field_id_that_does_not_exists');
         },
         throwsA(isA<FieldNotFoundException>()),
       );
 
       expect(
         () async {
-          await jiraStats!
-              .validateStoryPoitnsField('statuscategorychangedate');
+          await jiraStats!.validateStoryPoitnsField('statuscategorychangedate');
         },
         throwsA(isA<InvalidFieldTypeException>()),
       );
 
       await jiraStats!.validateStoryPoitnsField(env['STORY_POINTS_FIELD']!);
+    });
+
+    test('EstimationResults serialization', () async {
+      final result = await jiraStats!.getTotalEstimationByJql(
+        env['TEST_JQL']!,
+        weeksAgoCount: 2,
+        storyPointEstimateField: env['STORY_POINTS_FIELD']!,
+      );
+      expect(result, isNotNull);
+      expect(result.datedGroups, isNotEmpty);
+
+      final resultJson = result.toJson();
+      final parsedResult = EstimationResults.fromJson(resultJson);
+
+      expect(parsedResult, result);
     });
   });
 }
