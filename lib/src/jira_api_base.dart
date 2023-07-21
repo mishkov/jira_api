@@ -7,6 +7,25 @@ import 'package:http/http.dart';
 
 enum SamplingFrequency { eachWeek, eachDay }
 
+extension SerializableSamplingFrequency on SamplingFrequency {
+  String toMap() {
+    return toString();
+  }
+
+  static SamplingFrequency fromMap(String map) {
+    return SamplingFrequency.values.singleWhere(
+      (element) {
+        return element.toMap() == map;
+      },
+    );
+  }
+
+  String toJson() => json.encode(toMap());
+
+  static SamplingFrequency fromJson(String source) =>
+      SerializableSamplingFrequency.fromMap(source);
+}
+
 class JiraStats {
   /// Email address of your account. Like test@gmail.com
   final String user;
